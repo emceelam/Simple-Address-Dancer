@@ -50,3 +50,20 @@ template: "simple"
 #      cookie_name: eshop.session
 #      is_secure: 1
 #      is_http_only: 1
+
+
+
+plugins:
+  Database:
+    driver: 'mysql'
+    database: 'simple_address_dancer'
+    host: 'localhost'
+    port: 3306
+    username: 'simple_address_dancer'
+    password: ''
+    connection_check_threshold: 10
+    dbi_params:
+      RaiseErrors: 1
+      AutoCommit: 1
+    on_connect_do: ["SET NAMES 'utf8'", "SET CHARACTER SET 'utf8'"]
+    log_queries: 1
