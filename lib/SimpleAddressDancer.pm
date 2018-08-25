@@ -6,23 +6,6 @@ use Data::Dumper;
 
 our $VERSION = '0.001';
 
-get '/' => sub {
-    template 'index' => { 'title' => 'SimpleAddressDancer' };
-};
-
-get '/hello' => sub {
-    header 'Content-Type' => 'text/plain';
-    return 'hello world';
-};
-
-=begin comment
-street VARCHAR(80),
-  city   VARCHAR(40),
-  state  VARCHAR(2),
-  zip    INT(5),
-  lat    FLOAT,  /* latitude */
-  lng   =end comment
-=cut
 get '/api/addresses' => sub {
     my $sth = database()->prepare('
       SELECT id, street, city, state, zip, lat, lng
@@ -33,8 +16,7 @@ get '/api/addresses' => sub {
     my @fields = qw/id street city state zip lat lng/;
     my @rows_hash = map { { mesh ( @fields, @$_ ) } } @$rows;
 
-    header 'Content-Type' => 'application/json';  
-    return to_json (\@rows_hash);
+    return \@rows_hash;
 };
 
 get '/api/addresses/:id' => sub {
@@ -43,14 +25,69 @@ get '/api/addresses/:id' => sub {
         FROM addresses
         WHERE id=?
     ');
-    $sth->execute(route_parameters->get('id'));
+    $sth->execute(route_parameters()->get('id'));
     my $row = $sth->fetchrow_hashref();
-    return to_json ($row);
+    return $row;
 };
 
 post '/api/addresses' => sub {
-    my $body_parameters = body_parameters();
-    debug to_json $body_parameters;
+    my $address = request()->params();
+    my $sth = database()->prepare("
+      SELECT id
+        FROM addresses
+        WHERE street=?
+          AND city=?
+          AND state=?
+          AND zip=?
+    ");
+    $sth->execute(@{$address}{qw/street city state zip/});
+    my ($id) = $sth->fetchrow_array();
+    if ($id) {
+      $address->{id} = $id;
+      return $address;
+    }
+
+    $sth = database()->prepare("
+      INSERT INTO addresses (street, city, state, zip)
+        VALUES (?,?,?,?)
+    ");
+    $sth->execute(@{$address}{qw/street city state zip/});
+    $id = database()->last_insert_id("", "", "", "");
+    $address->{id} = $id;
+    status 201;
+    return $address;
+};
+
+put '/api/addresses/:id' => sub {
+    my $address = params();
+    my $id = route_parameters()->get('id');
+    my $sth = database()->prepare('
+      UPDATE addresses
+        SET street=?, city=?, state=?, zip=?, lat=?, lng=?
+        WHERE id=?
+    ');
+    $sth->execute(@{$address}{qw/street city state zip/}, undef, undef, $id);
+
+    my $err = $sth->err();
+    my $row_val = $sth->rows();
+    if (! $row_val ) {
+      status 404;
+      return {message => 'no rows found'};
+    }
+
+    status 202;
+    $address->{id} = $id;
+    return $address;
+};
+
+del '/api/addresses/:id' => sub {
+    my $sth = database()->prepare('
+      DELETE FROM addresses
+        WHERE id=?
+    ');
+    $sth->execute(route_parameters()->get('id'));
+    status 204;
+    return {message => 'delete'};
 };
 
 
